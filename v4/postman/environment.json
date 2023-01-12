@@ -4,32 +4,32 @@
   "values": [
     {
       "key": "serviceUrl",
-      "value": "",
+      "value": "http://158.160.50.71",
       "enabled": true
     },
     {
       "key": "identityProviderUrl",
-      "value": "",
+      "value": "http://158.160.50.71",
       "enabled": true
     },
     {
       "key": "username",
-      "value": "",
+      "value": "puzanovim@yandex.ru",
       "enabled": true
     },
     {
       "key": "password",
-      "value": "",
+      "value": "P@ssw0rd",
       "enabled": true
     },
     {
       "key": "clientId",
-      "value": "",
+      "value": "DZ6tfyL0cVWewexWc8Ty9835LuaqDTl3",
       "enabled": true
     },
     {
       "key": "clientSecret",
-      "value": "",
+      "value": "j4PgJkzxktRmXepPP2ykQxhpcnHXaCaRzlA0iXU8HQDsOV30SrX1mkA7e_zu29pq",
       "enabled": true
     }
   ],

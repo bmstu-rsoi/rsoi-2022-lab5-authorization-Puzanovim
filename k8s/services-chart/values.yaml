@@ -1,0 +1,27 @@
+gateway:
+  service:
+    port: 8080
+    image:
+      name: puzanovim/gateway_system
+      version: v3
+
+library:
+  service:
+    port: 8060
+    image:
+      name: puzanovim/library_system
+      version: v1
+
+rating:
+  service:
+    port: 8050
+    image:
+      name: puzanovim/rating_system
+      version: v1
+
+reservation:
+  service:
+    port: 8070
+    image:
+      name: puzanovim/reservation_system
+      version: v1
