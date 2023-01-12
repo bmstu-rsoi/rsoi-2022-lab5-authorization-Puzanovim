@@ -4,9 +4,8 @@ import logging
 from asyncio import Task
 from typing import Awaitable
 
-from httpx import ConnectTimeout, Response
-
 from gateway_system.config import CIRCUIT_BREAKER_CONFIG
+from httpx import ConnectTimeout, Response
 
 logger = logging.getLogger(__name__)
 

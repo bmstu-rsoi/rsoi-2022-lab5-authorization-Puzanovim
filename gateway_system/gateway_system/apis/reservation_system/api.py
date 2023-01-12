@@ -1,8 +1,6 @@
 from typing import Dict, List
 from uuid import UUID
 
-from httpx import AsyncClient, Response
-
 from gateway_system.apis.reservation_system.schemas import (
     RentedBooks,
     ReservationBookInput,
@@ -13,6 +11,7 @@ from gateway_system.circuit_breaker import CircuitBreaker
 from gateway_system.config import RESERVATION_SYSTEM_CONFIG
 from gateway_system.exceptions import ServiceNotAvailableError
 from gateway_system.validators import json_dump
+from httpx import AsyncClient, Response
 
 
 class ReservationSystemAPI:

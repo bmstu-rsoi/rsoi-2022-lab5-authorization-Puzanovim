@@ -2,10 +2,10 @@ import logging
 from asyncio import Queue
 from typing import Callable, Tuple
 
+from gateway_system.exceptions import ServiceNotAvailableError, ServiceTemporaryNotAvailableError
 from pydantic import BaseModel
 
 from gateway_system import run_forever
-from gateway_system.exceptions import ServiceNotAvailableError, ServiceTemporaryNotAvailableError
 
 logger = logging.getLogger(__name__)
 

@@ -3,8 +3,7 @@ from asyncio import Queue
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Response, status
-
+from fastapi import APIRouter, Depends, Response, status
 from gateway_system.apis import (
     LibrarySystemAPI,
     RatingSystemAPI,
@@ -25,6 +24,8 @@ from gateway_system.apis.reservation_system.schemas import (
     ReturnBookInput,
     Status,
 )
+from gateway_system.auth.auth import get_current_user
+from gateway_system.auth.schemas import User
 from gateway_system.exceptions import ServiceNotAvailableError, ServiceTemporaryNotAvailableError
 from gateway_system.queue_processor import Func, get_queue
 from gateway_system.validators import validate_page_size_params
@@ -41,8 +42,13 @@ router = APIRouter()
     summary='Получить список библиотек в городе',
 )
 async def get_libraries(
-    city: str, page: int = 0, size: int = 100, library_system_api: LibrarySystemAPI = Depends(get_library_system_api)
-) -> LibrariesPagination:
+    city: str,
+    page: int = 0,
+    size: int = 100,
+    library_system_api: LibrarySystemAPI = Depends(get_library_system_api),
+    current_user: User = Depends(get_current_user),
+) -> LibrariesPagination | Response:
+
     validate_page_size_params(page, size)
     libraries: LibrariesPagination | None = await library_system_api.get_libraries(city, page, size)
 
@@ -64,6 +70,7 @@ async def get_books(
     size: int = 100,
     show_all: bool = False,
     library_system_api: LibrarySystemAPI = Depends(get_library_system_api),
+    current_user: User = Depends(get_current_user),
 ) -> BooksPagination:
     validate_page_size_params(page, size)
     books: BooksPagination | None = await library_system_api.get_books(library_uid, page, size, show_all)
@@ -81,11 +88,11 @@ async def get_books(
     summary='Получить информацию по всем взятым в прокат книгам пользователя',
 )
 async def get_reservations(
-    x_user_name: str = Header(),
     reservation_system_api: ReservationSystemAPI = Depends(get_reservation_system_api),
     library_system_api: LibrarySystemAPI = Depends(get_library_system_api),
+    current_user: User = Depends(get_current_user),
 ) -> List[ReservationResponse]:
-    reservations: List[ReservationModel] | None = await reservation_system_api.get_reservations(x_user_name)
+    reservations: List[ReservationModel] | None = await reservation_system_api.get_reservations(current_user.username)
 
     if reservations is None:
         raise ServiceNotAvailableError
@@ -102,13 +109,13 @@ async def get_reservations(
 
 async def _reserve_book(
     reservation_book_input: ReservationBookInput,
-    x_user_name: str = Header(),
+    username: str,
     reservation_system_api: ReservationSystemAPI = Depends(get_reservation_system_api),
     rating_system_api: RatingSystemAPI = Depends(get_rating_system_api),
     library_system_api: LibrarySystemAPI = Depends(get_library_system_api),
 ) -> ReservationBookResponse:
-    rented_books: RentedBooks | None = await reservation_system_api.get_count_rented_books(x_user_name)
-    user_rating: UserRating | None = await rating_system_api.get_rating(x_user_name)
+    rented_books: RentedBooks | None = await reservation_system_api.get_count_rented_books(username)
+    user_rating: UserRating | None = await rating_system_api.get_rating(username)
 
     if rented_books is None or user_rating is None:
         logger.info(f'RESERVING BOOK: raising ServiceNotAvailableError')
@@ -119,7 +126,7 @@ async def _reserve_book(
         raise PermissionError
 
     try:
-        reservation: ReservationModel = await reservation_system_api.reserve_book(x_user_name, reservation_book_input)
+        reservation: ReservationModel = await reservation_system_api.reserve_book(username, reservation_book_input)
     except ServiceNotAvailableError:
         logger.info(f'RESERVING BOOK: raising ServiceTemporaryNotAvailableError 1 step')
         raise ServiceTemporaryNotAvailableError
@@ -127,7 +134,7 @@ async def _reserve_book(
     try:
         await library_system_api.reserve_book(reservation.libraryUid, reservation.bookUid)
     except ServiceNotAvailableError:
-        await reservation_system_api.delete_reserve(x_user_name, reservation.reservationUid)
+        await reservation_system_api.delete_reserve(username, reservation.reservationUid)
         logger.info(f'RESERVING BOOK: raising ServiceTemporaryNotAvailableError 2 step')
         raise ServiceTemporaryNotAvailableError
 
@@ -149,15 +156,16 @@ async def _reserve_book(
 )
 async def reserve_book_handler(
     reservation_book_input: ReservationBookInput,
-    x_user_name: str = Header(),
     reservation_system_api: ReservationSystemAPI = Depends(get_reservation_system_api),
     rating_system_api: RatingSystemAPI = Depends(get_rating_system_api),
     library_system_api: LibrarySystemAPI = Depends(get_library_system_api),
     queue: Queue = Depends(get_queue),
+    current_user: User = Depends(get_current_user),
 ) -> ReservationBookResponse | Response:
+
     func_name = _reserve_book
     func_args = (
-        reservation_book_input, x_user_name, reservation_system_api, rating_system_api, library_system_api
+        reservation_book_input, current_user.username, reservation_system_api, rating_system_api, library_system_api
     )
 
     logger.info(f'QUEUE SIZE RESERVING BOOK before: {queue.qsize()}')
@@ -176,12 +184,12 @@ async def reserve_book_handler(
 async def _return_book(
     reservation_uid: UUID,
     return_book_input: ReturnBookInput,
-    x_user_name: str = Header(),
+    username: str,
     reservation_system_api: ReservationSystemAPI = Depends(get_reservation_system_api),
     library_system_api: LibrarySystemAPI = Depends(get_library_system_api),
     rating_system_api: RatingSystemAPI = Depends(get_rating_system_api),
 ) -> None:
-    reservation: ReservationModel | None = await reservation_system_api.get_reservation(x_user_name, reservation_uid)
+    reservation: ReservationModel | None = await reservation_system_api.get_reservation(username, reservation_uid)
     book: BookModel = await library_system_api.get_book(reservation.libraryUid, reservation.bookUid)
 
     if reservation is None or book.condition == Condition.UNKNOWN:
@@ -207,17 +215,17 @@ async def _return_book(
         raise ServiceTemporaryNotAvailableError
 
     try:
-        await reservation_system_api.return_book(x_user_name, reservation_uid, reservation_update)
+        await reservation_system_api.return_book(username, reservation_uid, reservation_update)
     except ServiceNotAvailableError:
         await library_system_api.reserve_book(reservation.libraryUid, reservation.bookUid)
         logger.info(f'RETURNING BOOK: raising ServiceTemporaryNotAvailableError 2 step')
         raise ServiceTemporaryNotAvailableError
 
     try:
-        await rating_system_api.update_rating(x_user_name, change_stars)
+        await rating_system_api.update_rating(username, change_stars)
     except ServiceNotAvailableError:
         undo_reservation_update = ReservationUpdate(status=Status.RENTED)
-        await reservation_system_api.return_book(x_user_name, reservation_uid, undo_reservation_update)
+        await reservation_system_api.return_book(username, reservation_uid, undo_reservation_update)
         await library_system_api.reserve_book(reservation.libraryUid, reservation.bookUid)
         logger.info(f'RETURNING BOOK: raising ServiceTemporaryNotAvailableError 3 step')
         raise ServiceTemporaryNotAvailableError
@@ -229,15 +237,20 @@ async def _return_book(
 async def return_book_handler(
     reservation_uid: UUID,
     return_book_input: ReturnBookInput,
-    x_user_name: str = Header(),
     reservation_system_api: ReservationSystemAPI = Depends(get_reservation_system_api),
     library_system_api: LibrarySystemAPI = Depends(get_library_system_api),
     rating_system_api: RatingSystemAPI = Depends(get_rating_system_api),
     queue: Queue = Depends(get_queue),
-) -> None:
+    current_user: User = Depends(get_current_user),
+) -> Response | None:
     func_name = _return_book
     func_args = (
-        reservation_uid, return_book_input, x_user_name, reservation_system_api, library_system_api, rating_system_api
+        reservation_uid,
+        return_book_input,
+        current_user.username,
+        reservation_system_api,
+        library_system_api,
+        rating_system_api
     )
 
     logger.info(f'QUEUE SIZE RETURNING BOOK before: {queue.qsize()}')
@@ -253,9 +266,10 @@ async def return_book_handler(
 
 @router.get('/rating', status_code=status.HTTP_200_OK, summary='Получить рейтинг пользователя')
 async def get_rating(
-    x_user_name: str = Header(), rating_system_api: RatingSystemAPI = Depends(get_rating_system_api)
+    rating_system_api: RatingSystemAPI = Depends(get_rating_system_api),
+    current_user: User = Depends(get_current_user),
 ) -> UserRating:
-    user_rating: UserRating | None = await rating_system_api.get_rating(x_user_name)
+    user_rating: UserRating | None = await rating_system_api.get_rating(current_user.username)
 
     if user_rating is None:
         raise ServiceNotAvailableError

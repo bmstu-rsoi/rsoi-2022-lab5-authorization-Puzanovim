@@ -4,3 +4,7 @@ SQLAlchemy==1.4.42
 pytest-asyncio==0.20.1
 aiosqlite==0.17.0
 httpx==0.23.1
+pyjwt[crypto]
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
