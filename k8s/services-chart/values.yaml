@@ -3,7 +3,7 @@ gateway:
     port: 8080
     image:
       name: puzanovim/gateway_system
-      version: v2
+      version: v3
 
 library:
   service:

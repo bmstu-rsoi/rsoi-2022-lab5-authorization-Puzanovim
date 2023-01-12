@@ -6,7 +6,7 @@ on:
     branches: [ master ]
 
 env:
-  GATEWAY_SERVICE_IMAGE: puzanovim/gateway_system:v2
+  GATEWAY_SERVICE_IMAGE: puzanovim/gateway_system:v3
   LIBRARY_SYSTEM_IMAGE: puzanovim/library_system:v1
   RATING_SYSTEM_IMAGE: puzanovim/rating_system:v1
   RESERVATION_SYSTEM_IMAGE: puzanovim/reservation_system:v1
